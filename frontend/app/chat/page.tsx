@@ -92,8 +92,10 @@ export default function ChatPage() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("medibot_user");
-    router.push("/");
+    if (typeof window === "undefined") return;
+
+    window.localStorage.removeItem("medibot_user");
+    router.replace("/");
   };
 
   if (!user) return null;

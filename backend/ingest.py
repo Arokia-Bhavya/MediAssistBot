@@ -88,10 +88,6 @@ def chunk_document(file_path: str, collection: str) -> list[dict]:
     chunks = []
     for chunk in chunker.chunk(doc):
 
-        # Skip chunks that are too small to be meaningful
-        word_count = len(chunk.text.split())
-        if word_count < 20:            # 👈 drop anything under 20 words
-            continue
         # Extract the nearest parent heading for context
         headings = chunk.meta.headings if chunk.meta else []
         section_title = headings[-1] if headings else "General"
@@ -103,6 +99,13 @@ def chunk_document(file_path: str, collection: str) -> list[dict]:
             if section_title != "General"
             else chunk.text
         )
+
+        # Skip chunks that are too small to be meaningful — count words on the
+        # final chunk text (including any prepended heading) so short FAQ
+        # Q&A pairs that include a question heading are not dropped.
+        word_count = len(chunk_text.split())
+        if word_count < 20:            # 👈 drop anything under 20 words
+            continue
 
         # Detect chunk type from Docling label
         chunk_type = "text"
