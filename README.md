@@ -4,33 +4,50 @@ An Advanced RAG application with Hybrid Search, Reranking, and Role-Based Access
 
 ---
 
-## Architecture
+## Architecture: Request Flow
 
+```
 Login (role-tagged JWT)
+        │
+        ▼
+  /chat endpoint
+        │
+        ▼
+┌───────────────────────────┐
+│ Analytical/numbers query? │
+└───────────────────────────┘
+        │                   │
+       Yes                  No
+        │                   │
+        ▼                   ▼
+   SQL RAG            Hybrid Retrieval
+   (billing_executive  (dense + BM25 sparse,
+    / admin only)       top-10)
+        │                   │
+        └────────┬──────────┘
+                 │
+                 ▼
+  RBAC metadata filter
+  (applied at Qdrant query level)
+                 │
+                 ▼
+  Cross-encoder reranker
+  (top-10 → top-3)
+                 │
+                 ▼
+  LLM answer + source citations
+```
 
-↓
+### Flow summary
 
-/chat endpoint
-
-↓
-
-Is this an analytical/numbers question?
-
-├─ Yes → SQL RAG (billing_executive / admin only)
-
-└─ No  → Hybrid Retrieval (dense + BM25 sparse, top-10)
-
-      ↓
-
-RBAC metadata filter applied at Qdrant query level
-
-      ↓
-
-Cross-encoder reranker (top-10 → top-3)
-
-  ↓
-
-LLM answer + source citations
+1. **Login** — Users authenticate and receive a JWT tagged with their role (e.g. `admin`, `billing_executive`, `user`).
+2. **/chat endpoint** — All chat requests enter through a single endpoint.
+3. **Query routing** — The system classifies whether the query is analytical/numerical:
+   - **Yes → SQL RAG** — Restricted to `billing_executive` and `admin` roles. Generates and executes SQL against structured data.
+   - **No → Hybrid Retrieval** — Runs dense vector search combined with BM25 sparse retrieval, returning the top-10 candidates.
+4. **RBAC filter** — Metadata filters are applied at the Qdrant query level to enforce role-based access on retrieved chunks.
+5. **Reranker** — A cross-encoder reranks the top-10 results down to the top-3 most relevant passages.
+6. **LLM response** — The final answer is generated with inline source citations.
 
 ---
 
@@ -176,4 +193,3 @@ Sample questions that work:
 - **LLM:** Groq API instead of OpenAI — faster inference, free tier sufficient for development
 - **Qdrant:** Local disk storage via `QdrantClient(path="./qdrant_storage")` instead of a Docker container — no infra setup needed, data persists across restarts
 - **Sparse BM25:** Qdrant native sparse vectors via FastEmbed BM25 encoder (not the `rank-bm25` Python library) — required so both dense and sparse vectors are stored and queried at index time inside Qdrant, not merged in application code
->>>>>>> 399ec16 (removing unnecessary files from github)
